@@ -1,0 +1,163 @@
+<!DOCTYPE HTML>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<link rel="manifest" href="./wifi.webmanifest">
+<title>WiFi monitor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#369">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="shortcut icon" sizes="512x512" href="wifi.png" >
+<style>
+body {font:normal 11pt Verdana;margin:0;}
+h2 {text-align:center; background:#eee; color:#00d; display:block; margin:auto; padding:0.5em;}
+#wifiName {color:#aaa;} 
+#container {height: 500px;}
+.highcharts-figure {min-width:320px; max-width:1000px;margin:1em auto;}
+#average {float:left; font-size:1rem;color:#333;} 
+</style>
+<script src="https://code.highcharts.com/highcharts.js"></script>  
+</head>
+<body>
+<div class="content">
+  <figure class="highcharts-figure">
+    <div id="container"></div>  
+  </figure>
+  <div class="card">
+    <h2>
+		<span title="average"  id="average"></span>
+		<span title="wifiName" id="wifiName"></span> <span id="info"></span>dB
+		<button style="float:right;" onClick="clearChart()" title="clear Chart">cC</button> &nbsp;
+	</h2>
+  </div>
+</div>
+<script>
+let eventURL = "/events";
+const urlParams = new URLSearchParams(location.search);
+if (urlParams.has('url')) eventURL = urlParams.get('url')+eventURL;
+console.log(eventURL)
+
+let counter=0;
+let first=true;
+let lastY=-50;
+let lastYY=[];
+for (let i = 0; i<10; i++)lastYY[i] = lastY;
+
+	if (!!window.EventSource) {			
+		let source = new EventSource(eventURL);		
+		source.addEventListener('open', (e)=> {
+			console.log("Events Connected");
+		}, false);			
+		source.addEventListener('error', (e)=> {
+			if (e.target.readyState != EventSource.OPEN) {
+				console.log("Events Disconnected");
+			}
+		}, false);
+		source.addEventListener('message', (e)=> {
+		}, false);
+		source.addEventListener('wifiStrange', (e)=> {
+			updateChart(e.data);
+		}, false);			
+		source.addEventListener('wifiName', (e)=> {
+			document.getElementById("wifiName").innerHTML = e.data+":";
+		}, false);
+	}
+
+
+const saveToLocal=()=>{
+	let localData = [];
+	dynamicChart.series[0].data.forEach((d)=>{
+		localData.push([d.x,d.y]);	
+	});
+	localStorage.setItem("dynamicChartData", JSON.stringify(localData));
+	counter=0;
+}
+
+const clearChart=()=>{
+	let localData=updateDefault();
+	dynamicChart.series[0].setData(localData);
+	dynamicChart.series[1].setData(localData);
+	dynamicChart.redraw();
+}
+
+const updateDefault=(y)=>{
+	y= y || lastY;
+	for (let i = 0; i<11; i++)lastYY[i] = lastY;
+	let localData = [];
+	let time = (new Date()).getTime(),i;
+	for (i = -599; i <= 0; i += 1) {localData.push({x: time + i * 1000,y:y});}
+	return localData;
+}
+
+const extendChart=(y)=>{
+	let localData = [];
+	if (!!localStorage.getItem("dynamicChartData")){
+		let lData = localStorage.getItem("dynamicChartData");
+		localData = JSON.parse(lData);
+		let time = (new Date()).getTime();
+		let prevTime = parseInt(localData[0]);
+		let delta = (parseInt(time) - parseInt(prevTime))/(1000*60);
+		if (delta > 60) localData=updateDefault(y);
+		
+	} else	{
+		localData=updateDefault(y);
+	}
+	dynamicChart.series[0].setData(localData);
+	dynamicChart.series[1].setData(localData);
+	dynamicChart.redraw();
+	first = false;  
+}
+
+const updateChart=(val)=>{
+  let x = (new Date()).getTime();
+  let y = parseInt(val);
+  lastY=y;
+  lastYY[counter%10] = y;
+  
+	let average = lastYY.reduce(function (sum, value) {return sum + value;}, 0) / lastYY.length;
+	average = Math.round(average*10)/10;
+	document.getElementById("average").textContent = "("+average.toFixed(1)+")";
+	dynamicChart.series[1].addPoint([x, average], true, true);
+	
+  if (first) extendChart(y);
+  dynamicChart.series[0].addPoint([x, y], true, true);
+  document.getElementById("info").textContent = Math.round(val);
+
+  counter++;
+	if (counter>199){
+		saveToLocal();
+	}
+}
+
+
+const dynamicChart = Highcharts.chart('container', {
+  chart: {
+    type: 'line',
+    animation: Highcharts.svg,
+    marginRight: 10,
+  },
+  time: {useUTC: false},
+  title: {text: 'WiFi RSSI'},
+  xAxis: {type: 'datetime'},
+  yAxis: {
+    title: {text: 'dB'},
+	startOnTick: false,
+    min:-90, 
+    max:-40,
+  },
+  tooltip: {
+    headerFormat: '{series.name}: ',
+    pointFormat: '{point.x: %H:%M:%S}<br/><b>{point.y}dB</b>'
+  },
+  legend: {enabled: false},
+  exporting: {enabled: false},
+  series: [
+	{name: 'WiFi'},
+	{name: 'AVG',lineWidth:1}
+  ]
+});
+
+</script>
+
+</body>
+</html>
