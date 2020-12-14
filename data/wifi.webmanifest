@@ -1,0 +1,22 @@
+{
+	"name": "WIFI signal",
+	"short_name": "WIFIs",
+	"description": "WIFI signal",
+	"start_url": "index.html",
+	"display": "standalone",
+
+	"theme_color": "#369",
+	"background_color": "#369",
+	"icons": [
+	{
+		"src": "wifi.png",
+		"sizes": "512x512",
+		"type": "image/png"
+	}],
+	"screenshots": [
+	{
+		"src": "wifi.png",
+		"sizes": "512x512",
+		"type": "image/png"
+	}]
+}
